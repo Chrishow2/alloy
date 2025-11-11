@@ -1,0 +1,37 @@
+discovery.docker "containers" {
+  host              = "unix:///var/run/docker.sock"
+  refresh_interval  = "5s"
+}
+
+discovery.relabel "docker_labels_to_loki" {
+  targets = []
+  rule {
+    source_labels = ["__meta_docker_container_label_app"]
+    target_label  = "app"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_service_name"]
+    target_label  = "service_name"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_environment"]
+    target_label  = "environment"
+  }
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.write.default.receiver]
+
+  relabel_rules = discovery.relabel.docker_labels_to_loki.rules
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://localhost:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    host = "local-machine",
+  }
+}
